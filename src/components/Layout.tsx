@@ -1,43 +1,63 @@
 import { NavLink, Outlet } from 'react-router-dom';
 
-const tabs = [
-  { to: '/', label: 'Overview', end: true },
-  { to: '/my-prs', label: 'My PRs' },
-  { to: '/review-queue', label: 'Review Queue' },
-  { to: '/worktrees', label: 'Worktrees' },
-  { to: '/settings', label: 'Settings' },
+interface Tab {
+  to: string;
+  label: string;
+  end?: boolean;
+  icon: string;
+}
+
+const tabs: Tab[] = [
+  { to: '/', label: 'Overview', end: true, icon: '🏠' },
+  { to: '/worktrees', label: 'Worktrees', icon: '🌿' },
+  { to: '/my-prs', label: 'My PRs', icon: '📤' },
+  { to: '/review-queue', label: 'Review Queue', icon: '📥' },
+  { to: '/time', label: 'Time', icon: '⏱️' },
+  { to: '/settings', label: 'Settings', icon: '⚙️' },
 ];
 
 export default function Layout() {
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="border-b border-slate-200 dark:border-slate-800">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <h1 className="text-lg font-semibold tracking-tight">
-            Dev Dashboard
-          </h1>
-          <nav className="flex gap-1">
-            {tabs.map((tab) => (
-              <NavLink
-                key={tab.to}
-                to={tab.to}
-                end={tab.end}
-                className={({ isActive }) =>
-                  `px-3 py-1.5 text-sm rounded-md transition-colors ${
-                    isActive
-                      ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
-                      : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
-                  }`
-                }
-              >
-                {tab.label}
-              </NavLink>
-            ))}
-          </nav>
+    <div className="min-h-screen flex bg-slate-50 dark:bg-slate-950">
+      <aside className="w-56 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 flex flex-col">
+        <div className="px-5 py-5 border-b border-slate-200 dark:border-slate-800">
+          <h1 className="text-base font-semibold tracking-tight">Dev Dashboard</h1>
+          <p className="text-xs text-slate-500 mt-0.5">Personal · private data</p>
         </div>
-      </header>
-      <main className="flex-1 max-w-6xl mx-auto w-full px-6 py-8">
-        <Outlet />
+        <nav className="flex-1 p-3 space-y-0.5">
+          {tabs.map((tab) => (
+            <NavLink
+              key={tab.to}
+              to={tab.to}
+              end={tab.end}
+              className={({ isActive }) =>
+                `flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors ${
+                  isActive
+                    ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                    : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                }`
+              }
+            >
+              <span className="text-base">{tab.icon}</span>
+              <span>{tab.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+        <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-500">
+          <a
+            href="https://github.com/faisal-alvi/dev-dashboard"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline"
+          >
+            github.com/.../dev-dashboard
+          </a>
+        </div>
+      </aside>
+      <main className="flex-1 overflow-y-auto">
+        <div className="max-w-5xl mx-auto px-8 py-8">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

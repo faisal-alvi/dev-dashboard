@@ -5,6 +5,7 @@ import Overview from './pages/Overview';
 import MyPRs from './pages/MyPRs';
 import ReviewQueue from './pages/ReviewQueue';
 import Worktrees from './pages/Worktrees';
+import Time from './pages/Time';
 import Settings from './pages/Settings';
 
 const queryClient = new QueryClient({
@@ -26,6 +27,7 @@ export default function App() {
             <Route path="my-prs" element={<MyPRs />} />
             <Route path="review-queue" element={<ReviewQueue />} />
             <Route path="worktrees" element={<Worktrees />} />
+            <Route path="time" element={<Time />} />
             <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>
