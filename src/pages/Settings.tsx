@@ -13,14 +13,14 @@ const fields: TokenField[] = [
   {
     key: 'github',
     label: 'GitHub Personal Access Token',
-    help: 'Fine-grained token with read access to PRs, issues, and metadata for the repos you work on.',
+    help: 'Fine-grained token. Read on Pull requests, Issues, Metadata. Add WRITE on Pull requests if you want to use the "Draft PR" and "Add review" buttons.',
     link: 'https://github.com/settings/tokens?type=beta',
   },
   {
     key: 'teamwork',
     label: 'Teamwork API Token',
-    help: 'Found in your Teamwork profile under "API Tokens". Read-only is sufficient.',
-    link: 'https://fueled.teamwork.com/launchpad/settings/api',
+    help: 'In Teamwork: avatar (top right) → Edit my details → API & Mobile tab → "Show your token".',
+    link: 'https://fueled.teamwork.com/',
   },
 ];
 

@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchWorktreeData, summariseGit, type Worktree } from '../lib/worktrees';
 import { linearUrl, worktreePath } from '../lib/constants';
+import { hasToken } from '../lib/tokens';
 import CopyButton from '../components/CopyButton';
+import DraftPRModal from '../components/DraftPRModal';
 
 function relativeDay(isoDate: string | null): string {
   if (!isoDate) return '—';
@@ -52,12 +55,15 @@ function ActionButton({
 }
 
 function WorktreeCard({ wt, plugin }: { wt: Worktree; plugin: string }) {
+  const [draftPROpen, setDraftPROpen] = useState(false);
+  const githubReady = hasToken('github');
   const gitSummary = summariseGit(wt.git);
   const aheadBehind =
     wt.git.ahead === 0 && wt.git.behind === 0
       ? null
       : `↑${wt.git.ahead} ↓${wt.git.behind}`;
   const path = worktreePath(plugin, wt.ticket);
+  const canDraftPR = githubReady && Boolean(wt.github_repo) && !wt.pr_url && wt.git.ahead > 0;
 
   return (
     <div className="p-4 border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900/50 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
@@ -114,7 +120,26 @@ function WorktreeCard({ wt, plugin }: { wt: Worktree; plugin: string }) {
         )}
         <CopyButton value={`cd ${path}`} label="cd path" />
         <CopyButton value={`/cleanup-ticket ${wt.ticket}`} label="cleanup cmd" />
+        {canDraftPR && (
+          <button
+            onClick={() => setDraftPROpen(true)}
+            title="Draft a PR — you'll see the description and approve before it's created"
+            className="text-xs px-2 py-0.5 rounded border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors"
+          >
+            ✏️ Draft PR
+          </button>
+        )}
       </div>
+      {canDraftPR && wt.github_repo && (
+        <DraftPRModal
+          open={draftPROpen}
+          onClose={() => setDraftPROpen(false)}
+          ticket={wt.ticket}
+          ticketTitle={wt.title}
+          repo={wt.github_repo}
+          branch={wt.branch}
+        />
+      )}
     </div>
   );
 }
