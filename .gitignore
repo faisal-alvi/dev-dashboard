@@ -5,3 +5,7 @@ dist
 .env
 .env.*
 !.env.example
+
+# Local working docs (Claude scratchpad)
+.claude/
+CLAUDE.md
