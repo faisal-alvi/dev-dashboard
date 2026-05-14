@@ -4,12 +4,26 @@
  * required, no API call to a third party.
  */
 
+export interface GitFile {
+  status: string;
+  path: string;
+}
+
+export interface GitCommit {
+  sha: string;
+  date: string;
+  message: string;
+  author: string;
+}
+
 export interface WorktreeGitState {
   staged: number;
   modified: number;
   untracked: number;
   ahead: number;
   behind: number;
+  files?: GitFile[];
+  recent_commits?: GitCommit[];
 }
 
 export interface Worktree {
@@ -23,10 +37,12 @@ export interface Worktree {
   review_status: string | null;
   git: WorktreeGitState;
   last_activity: string | null;
+  pr_template: string | null;
 }
 
 export interface PluginWorktrees {
   name: string;
+  pr_template: string | null;
   worktrees: Worktree[];
 }
 

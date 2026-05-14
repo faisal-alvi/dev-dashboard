@@ -5,14 +5,14 @@ import {
   getCurrentUser,
   getMyOpenPRs,
   getReviewRequests,
-  type PullRequest,
 } from '../lib/github';
-import { deriveWorktreeState } from '../lib/worktree-state';
+import { deriveWorktreeState, type PRMatch } from '../lib/worktree-state';
 import { linearUrl, worktreePath } from '../lib/constants';
 import { hasToken } from '../lib/tokens';
 import CopyButton from '../components/CopyButton';
 import DraftPRModal from '../components/DraftPRModal';
 import AddReviewModal from '../components/AddReviewModal';
+import GitDetailsModal from '../components/GitDetailsModal';
 
 function relativeDay(isoDate: string | null): string {
   if (!isoDate) return '—';
@@ -26,7 +26,7 @@ function relativeDay(isoDate: string | null): string {
   return `${Math.floor(days / 30)}mo ago`;
 }
 
-function ActionButton({
+function ActionLink({
   href,
   label,
   title,
@@ -53,7 +53,7 @@ function ActionButton({
   );
 }
 
-function ButtonAction({
+function ActionBtn({
   onClick,
   label,
   primary = false,
@@ -81,14 +81,17 @@ function ButtonAction({
 function WorktreeCard({
   wt,
   plugin,
+  pluginTemplate,
   matchingPR,
 }: {
   wt: Worktree;
   plugin: string;
-  matchingPR: PullRequest | undefined;
+  pluginTemplate: string | null;
+  matchingPR: PRMatch | undefined;
 }) {
   const [draftPROpen, setDraftPROpen] = useState(false);
   const [addReviewOpen, setAddReviewOpen] = useState(false);
+  const [gitDetailsOpen, setGitDetailsOpen] = useState(false);
   const githubReady = hasToken('github');
   const derived = deriveWorktreeState(wt, matchingPR);
   const gitSummary = summariseGit(wt.git);
@@ -99,23 +102,27 @@ function WorktreeCard({
   const path = worktreePath(plugin, wt.ticket);
 
   // PR URL: prefer live data from GitHub API, fall back to status.md
-  const prUrl = matchingPR?.html_url ?? wt.pr_url;
-  const prNumber = matchingPR?.number;
+  const prUrl = matchingPR?.pr.html_url ?? wt.pr_url;
+  const prNumber = matchingPR?.pr.number;
+  const prNumberFromUrl = !prNumber && wt.pr_url
+    ? Number(wt.pr_url.match(/\/pull\/(\d+)/)?.[1] ?? 0) || undefined
+    : undefined;
+  const displayPRNumber = prNumber ?? prNumberFromUrl;
 
-  // Action visibility based on state
+  // Show Draft PR in both implementing and ready_for_pr (modal warns if blocked)
   const showDraftPR =
     githubReady &&
     Boolean(wt.github_repo) &&
     !matchingPR &&
     !wt.pr_url &&
-    wt.git.ahead > 0 &&
-    derived.state === 'ready_for_pr';
+    (derived.state === 'implementing' || derived.state === 'ready_for_pr');
 
   const showAddReview =
     githubReady &&
     Boolean(wt.github_repo) &&
     derived.state === 'reviewing' &&
-    prNumber !== undefined;
+    matchingPR &&
+    matchingPR.pr.number !== undefined;
 
   return (
     <div
@@ -148,31 +155,40 @@ function WorktreeCard({
             </p>
           </div>
           <div className="flex-shrink-0 text-right text-xs text-slate-500 font-mono">
-            <div className={gitSummary === 'clean' ? 'text-slate-400' : ''}>
-              {gitSummary}
-            </div>
-            {aheadBehind && <div className="mt-0.5">{aheadBehind}</div>}
+            <button
+              onClick={() => setGitDetailsOpen(true)}
+              className="block w-full text-right hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
+              title="Open git details (files, commits, commands)"
+            >
+              <div className={gitSummary === 'clean' ? 'text-slate-400' : ''}>
+                {gitSummary}
+              </div>
+              {aheadBehind && <div className="mt-0.5">{aheadBehind}</div>}
+            </button>
             <div className="mt-1">{relativeDay(wt.last_activity)}</div>
           </div>
         </div>
 
         <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-          {prUrl && (
-            <ActionButton
+          {/* Primary action: open PR if exists, draft PR otherwise */}
+          {prUrl && displayPRNumber ? (
+            <ActionLink
               href={prUrl}
-              label={
+              label={`#${displayPRNumber}`}
+              title={
                 derived.state === 'pr_draft'
-                  ? `PR draft #${prNumber ?? ''}`
-                  : derived.state === 'in_review'
-                  ? `PR #${prNumber ?? ''}`
-                  : 'PR'
+                  ? 'Open draft PR on GitHub'
+                  : derived.state === 'reviewing'
+                  ? 'Open PR (you are reviewer)'
+                  : 'Open PR on GitHub'
               }
-              title="Open PR on GitHub"
-              primary={derived.state === 'pr_draft' || derived.state === 'in_review'}
+              primary
             />
-          )}
+          ) : prUrl ? (
+            <ActionLink href={prUrl} label="PR" primary />
+          ) : null}
           {showDraftPR && (
-            <ButtonAction
+            <ActionBtn
               onClick={() => setDraftPROpen(true)}
               label="✏️ Draft PR"
               primary
@@ -180,20 +196,26 @@ function WorktreeCard({
             />
           )}
           {showAddReview && (
-            <ButtonAction
+            <ActionBtn
               onClick={() => setAddReviewOpen(true)}
               label="✏️ Add review"
               primary
               title="Draft a pending review (not published until you submit on GitHub)"
             />
           )}
-          <ActionButton
+          <ActionBtn
+            onClick={() => setGitDetailsOpen(true)}
+            label="Git details"
+            title="View files, recent commits, copy commit/push commands"
+          />
+          <ActionLink
             href={linearUrl(wt.ticket)}
             label="Linear"
             title="Open ticket on Linear"
           />
-          {wt.github_repo && (
-            <ActionButton
+          {/* Only show Branch link when there's no PR to point to */}
+          {!prUrl && wt.github_repo && (
+            <ActionLink
               href={`https://github.com/${wt.github_repo}/tree/${wt.branch}`}
               label="Branch"
               title="View branch on GitHub"
@@ -208,21 +230,25 @@ function WorktreeCard({
         <DraftPRModal
           open={draftPROpen}
           onClose={() => setDraftPROpen(false)}
-          ticket={wt.ticket}
-          ticketTitle={wt.title}
-          repo={wt.github_repo}
-          branch={wt.branch}
+          wt={wt}
+          pluginTemplate={pluginTemplate}
         />
       )}
-      {showAddReview && wt.github_repo && prNumber !== undefined && (
+      {showAddReview && wt.github_repo && matchingPR && (
         <AddReviewModal
           open={addReviewOpen}
           onClose={() => setAddReviewOpen(false)}
           repo={wt.github_repo}
-          prNumber={prNumber}
-          prTitle={matchingPR?.title ?? wt.title ?? wt.ticket}
+          prNumber={matchingPR.pr.number}
+          prTitle={matchingPR.pr.title}
         />
       )}
+      <GitDetailsModal
+        open={gitDetailsOpen}
+        onClose={() => setGitDetailsOpen(false)}
+        wt={wt}
+        plugin={plugin}
+      />
     </div>
   );
 }
@@ -257,7 +283,6 @@ export default function Worktrees() {
     staleTime: 30 * 1000,
   });
 
-  // Cross-reference with live GitHub PRs to detect existing PRs by branch.
   const ghUser = useQuery({
     queryKey: ['github-user'],
     queryFn: getCurrentUser,
@@ -270,8 +295,6 @@ export default function Worktrees() {
     enabled: tokenSet && Boolean(ghUser.data?.login),
   });
 
-  // Also include PRs assigned to you for review — those match the
-  // "reviewing" worktrees created by /review-ticket.
   const reviewQ = useQuery({
     queryKey: ['review-queue', ghUser.data?.login],
     queryFn: () => getReviewRequests(ghUser.data!.login),
@@ -311,39 +334,39 @@ export default function Worktrees() {
     );
   }
 
-  // Build a lookup of PRs by `{repo}#{branch}`
-  const prIndex = new Map<string, PullRequest>();
-  for (const pr of myPRsQ.data ?? []) {
-    if (pr.head?.repo?.full_name) {
-      prIndex.set(`${pr.head.repo.full_name}#${pr.head.ref}`, pr);
-    }
-  }
+  // Source-tagged PR index: 'own' = user is author; 'reviewing' = user is reviewer.
+  // Author wins over reviewer (in the unlikely case both are true).
+  const prIndex = new Map<string, PRMatch>();
   for (const pr of reviewQ.data ?? []) {
     if (pr.head?.repo?.full_name) {
-      prIndex.set(`${pr.head.repo.full_name}#${pr.head.ref}`, pr);
+      prIndex.set(`${pr.head.repo.full_name}#${pr.head.ref}`, { pr, source: 'reviewing' });
+    }
+  }
+  for (const pr of myPRsQ.data ?? []) {
+    if (pr.head?.repo?.full_name) {
+      prIndex.set(`${pr.head.repo.full_name}#${pr.head.ref}`, { pr, source: 'own' });
     }
   }
 
-  const allWorktrees = data.plugins.flatMap((p) =>
+  const allDerived = data.plugins.flatMap((p) =>
     p.worktrees.map((wt) => {
       const key = wt.github_repo ? `${wt.github_repo}#${wt.branch}` : '';
       const matchingPR = prIndex.get(key);
-      return { plugin: p.name, wt, matchingPR, state: deriveWorktreeState(wt, matchingPR).state };
+      return { state: deriveWorktreeState(wt, matchingPR).state };
     }),
   );
 
-  const totalWorktrees = allWorktrees.length;
+  const totalWorktrees = allDerived.length;
   const generated = new Date(data.generated_at);
 
-  // State summary counts
   const stateCounts = {
-    implementing: allWorktrees.filter((x) => x.state === 'implementing').length,
-    ready_for_pr: allWorktrees.filter((x) => x.state === 'ready_for_pr').length,
-    pr_draft: allWorktrees.filter((x) => x.state === 'pr_draft').length,
-    in_review: allWorktrees.filter((x) => x.state === 'in_review').length,
-    reviewing: allWorktrees.filter((x) => x.state === 'reviewing').length,
-    merged: allWorktrees.filter((x) => x.state === 'merged').length,
-    unknown: allWorktrees.filter((x) => x.state === 'unknown').length,
+    implementing: allDerived.filter((x) => x.state === 'implementing').length,
+    ready_for_pr: allDerived.filter((x) => x.state === 'ready_for_pr').length,
+    pr_draft: allDerived.filter((x) => x.state === 'pr_draft').length,
+    in_review: allDerived.filter((x) => x.state === 'in_review').length,
+    reviewing: allDerived.filter((x) => x.state === 'reviewing').length,
+    merged: allDerived.filter((x) => x.state === 'merged').length,
+    unknown: allDerived.filter((x) => x.state === 'unknown').length,
   };
 
   return (
@@ -370,7 +393,6 @@ export default function Worktrees() {
         </div>
       </div>
 
-      {/* State summary */}
       <div className="flex flex-wrap gap-2 mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">
         <StateCount label="implementing" count={stateCounts.implementing} icon="⚒️" color="bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300" />
         <StateCount label="ready for PR" count={stateCounts.ready_for_pr} icon="✓" color="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300" />
@@ -398,6 +420,7 @@ export default function Worktrees() {
                     key={wt.ticket}
                     wt={wt}
                     plugin={plugin.name}
+                    pluginTemplate={plugin.pr_template}
                     matchingPR={prIndex.get(key)}
                   />
                 );

@@ -22,6 +22,16 @@ export type WorktreeState =
   | 'merged'
   | 'unknown';
 
+/**
+ * A PR matched to a worktree, tagged by source so we can distinguish
+ * "user is the author" (own work, possibly in review) from "user is the
+ * reviewer" (someone else's PR they're reviewing).
+ */
+export interface PRMatch {
+  pr: PullRequest;
+  source: 'own' | 'reviewing';
+}
+
 export interface DerivedState {
   state: WorktreeState;
   label: string;
@@ -81,7 +91,7 @@ const STATE_META: Record<WorktreeState, Omit<DerivedState, 'state' | 'nextStep'>
 
 export function deriveWorktreeState(
   wt: Worktree,
-  matchingPR: PullRequest | undefined,
+  matchingPR: PRMatch | undefined,
 ): DerivedState {
   let state: WorktreeState;
   let nextStep: string;
@@ -89,7 +99,13 @@ export function deriveWorktreeState(
   const uncommitted = wt.git.staged + wt.git.modified + wt.git.untracked;
 
   if (matchingPR) {
-    if (matchingPR.draft) {
+    if (matchingPR.source === 'reviewing') {
+      // PR is matched via review-requested — user is the REVIEWER, not the author.
+      state = 'reviewing';
+      nextStep = wt.review_status === 'Approved'
+        ? 'Submit your pending review on GitHub'
+        : 'Draft your review (Add review button), then submit it on GitHub';
+    } else if (matchingPR.pr.draft) {
       state = 'pr_draft';
       nextStep = uncommitted > 0
         ? 'Commit remaining changes, then mark PR ready for review on GitHub'
@@ -101,6 +117,7 @@ export function deriveWorktreeState(
         : 'Address any review comments; merge when approved';
     }
   } else if (/-pr$/.test(wt.branch)) {
+    // Branch convention from /review-ticket — user is reviewing
     state = 'reviewing';
     nextStep = wt.review_status === 'Approved'
       ? 'Open PR on GitHub and submit your pending review'

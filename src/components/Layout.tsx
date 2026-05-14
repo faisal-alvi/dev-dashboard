@@ -13,6 +13,7 @@ const tabs: Tab[] = [
   { to: '/my-prs', label: 'My PRs', icon: '📤' },
   { to: '/review-queue', label: 'Review Queue', icon: '📥' },
   { to: '/time', label: 'Time', icon: '⏱️' },
+  { to: '/quick-start', label: 'Quick Start', icon: '▶️' },
   { to: '/settings', label: 'Settings', icon: '⚙️' },
 ];
 
