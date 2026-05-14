@@ -4,6 +4,7 @@ const tabs = [
   { to: '/', label: 'Overview', end: true },
   { to: '/my-prs', label: 'My PRs' },
   { to: '/review-queue', label: 'Review Queue' },
+  { to: '/worktrees', label: 'Worktrees' },
   { to: '/settings', label: 'Settings' },
 ];
 
