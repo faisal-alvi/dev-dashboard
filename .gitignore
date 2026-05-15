@@ -8,4 +8,5 @@ dist
 
 # Local working docs (Claude scratchpad)
 .claude/
+.cursor/
 CLAUDE.md
