@@ -1,4 +1,5 @@
-import type { PullRequest } from '../lib/github';
+import type { PullRequest, PRReview } from '../lib/github';
+import ReviewStatus from './ReviewStatus';
 
 function relativeTime(iso: string): string {
   const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -24,9 +25,11 @@ function ageColor(iso: string): string {
 export default function PRList({
   prs,
   emptyMessage,
+  reviewsByPR,
 }: {
   prs: PullRequest[];
   emptyMessage: string;
+  reviewsByPR?: Map<string, PRReview[]>;
 }) {
   if (prs.length === 0) {
     return (
@@ -85,6 +88,18 @@ export default function PRList({
                     </>
                   )}
                 </div>
+                {reviewsByPR && (() => {
+                  const repo = pr.head?.repo?.full_name ?? repoFromUrl(pr.html_url);
+                  const reviews = reviewsByPR.get(`${repo}#${pr.number}`);
+                  return (
+                    <div className="mt-2">
+                      <ReviewStatus
+                        reviews={reviews}
+                        requestedReviewers={pr.requested_reviewers ?? []}
+                      />
+                    </div>
+                  );
+                })()}
               </div>
               <img
                 src={pr.user.avatar_url}

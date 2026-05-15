@@ -1,5 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
-import { getCurrentUser, getMyOpenPRs } from '../lib/github';
+import { useMemo } from 'react';
+import { useQuery, useQueries } from '@tanstack/react-query';
+import { getCurrentUser, getMyOpenPRs, getPRReviews, type PRReview } from '../lib/github';
 import { hasToken } from '../lib/tokens';
 import PRList from '../components/PRList';
 import { Link } from 'react-router-dom';
@@ -18,6 +19,32 @@ export default function MyPRs() {
     queryFn: () => getMyOpenPRs(user.data!.login),
     enabled: tokenSet && Boolean(user.data?.login),
   });
+
+  const prList = useMemo(() =>
+    (prs.data ?? []).map((pr) => ({
+      repo: pr.head?.repo?.full_name ?? '',
+      number: pr.number,
+    })).filter((p) => p.repo),
+    [prs.data],
+  );
+
+  const reviewsQueries = useQueries({
+    queries: prList.map((p) => ({
+      queryKey: ['pr-reviews', p.repo, p.number],
+      queryFn: () => getPRReviews(p.repo, p.number),
+      staleTime: 5 * 60 * 1000,
+      enabled: tokenSet && prList.length > 0,
+    })),
+  });
+
+  const reviewsByPR = useMemo(() => {
+    const map = new Map<string, PRReview[]>();
+    prList.forEach((p, i) => {
+      const data = reviewsQueries[i]?.data;
+      if (data) map.set(`${p.repo}#${p.number}`, data);
+    });
+    return map;
+  }, [prList, reviewsQueries]);
 
   if (!tokenSet) {
     return (
@@ -48,6 +75,7 @@ export default function MyPRs() {
       <h2 className="text-xl font-semibold mb-4">My Open PRs</h2>
       <PRList
         prs={prs.data ?? []}
+        reviewsByPR={reviewsByPR}
         emptyMessage="No open PRs. 🎉"
       />
     </div>

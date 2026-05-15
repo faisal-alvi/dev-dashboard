@@ -15,6 +15,7 @@ import CopyButton from '../components/CopyButton';
 import DraftPRModal from '../components/DraftPRModal';
 import AddReviewModal from '../components/AddReviewModal';
 import GitDetailsModal from '../components/GitDetailsModal';
+import ReviewStatus from '../components/ReviewStatus';
 
 function relativeDay(isoDate: string | null): string {
   if (!isoDate) return '—';
@@ -77,53 +78,6 @@ function ActionBtn({
     >
       {label}
     </button>
-  );
-}
-
-function ReviewStatus({ reviews, requestedReviewers }: {
-  reviews: PRReview[] | undefined;
-  requestedReviewers: { login: string }[];
-}) {
-  if (!reviews && requestedReviewers.length === 0) return null;
-
-  // Deduplicate: latest review per reviewer wins
-  const latestByUser = new Map<string, PRReview>();
-  for (const r of reviews ?? []) {
-    if (!r.user) continue;
-    if (r.state === 'COMMENTED') continue; // skip comment-only reviews
-    const existing = latestByUser.get(r.user.login);
-    if (!existing || (r.submitted_at ?? '') > (existing.submitted_at ?? '')) {
-      latestByUser.set(r.user.login, r);
-    }
-  }
-
-  const approved = [...latestByUser.values()].filter(r => r.state === 'APPROVED');
-  const changesRequested = [...latestByUser.values()].filter(r => r.state === 'CHANGES_REQUESTED');
-  const pending = requestedReviewers.filter(r => !latestByUser.has(r.login));
-
-  if (approved.length === 0 && changesRequested.length === 0 && pending.length === 0) return null;
-
-  return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs mt-2">
-      {approved.length > 0 && (
-        <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
-          <span>✓</span>
-          <span>{approved.map(r => r.user!.login).join(', ')}</span>
-        </span>
-      )}
-      {changesRequested.length > 0 && (
-        <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400">
-          <span>⊘</span>
-          <span>{changesRequested.map(r => r.user!.login).join(', ')}</span>
-        </span>
-      )}
-      {pending.length > 0 && (
-        <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
-          <span>⏳</span>
-          <span>{pending.map(r => r.login).join(', ')}</span>
-        </span>
-      )}
-    </div>
   );
 }
 
@@ -205,10 +159,12 @@ function WorktreeCard({
               <span className="font-semibold">Next →</span> {derived.nextStep}
             </p>
             {prUrl && derived.state !== 'reviewing' && (
-              <ReviewStatus
-                reviews={reviews}
-                requestedReviewers={matchingPR?.pr.requested_reviewers ?? []}
-              />
+              <div className="mt-2">
+                <ReviewStatus
+                  reviews={reviews}
+                  requestedReviewers={matchingPR?.pr.requested_reviewers ?? []}
+                />
+              </div>
             )}
           </div>
           <div className="flex-shrink-0 text-right text-xs text-slate-500 font-mono">
