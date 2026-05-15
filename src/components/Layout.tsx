@@ -44,16 +44,6 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
-        <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-500">
-          <a
-            href="https://github.com/faisal-alvi/dev-dashboard"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:underline"
-          >
-            github.com/.../dev-dashboard
-          </a>
-        </div>
       </aside>
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-8 py-8">
