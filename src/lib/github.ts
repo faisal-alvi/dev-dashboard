@@ -151,6 +151,17 @@ export async function createDraftPR(params: {
   return data;
 }
 
+export interface PRReview {
+  id: number;
+  user: { login: string; avatar_url: string } | null;
+  state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING';
+  submitted_at: string | null;
+}
+
+export async function getPRReviews(repo: string, prNumber: number): Promise<PRReview[]> {
+  return gh<PRReview[]>(`/repos/${repo}/pulls/${prNumber}/reviews`);
+}
+
 /**
  * Create a PENDING (draft) review on a pull request.
  *

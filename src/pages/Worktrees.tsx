@@ -1,10 +1,12 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useMemo } from 'react';
+import { useQuery, useQueries } from '@tanstack/react-query';
 import { fetchWorktreeData, summariseGit, type Worktree } from '../lib/worktrees';
 import {
   getCurrentUser,
   getMyOpenPRs,
   getReviewRequests,
+  getPRReviews,
+  type PRReview,
 } from '../lib/github';
 import { deriveWorktreeState, type PRMatch } from '../lib/worktree-state';
 import { linearUrl, worktreePath } from '../lib/constants';
@@ -78,16 +80,65 @@ function ActionBtn({
   );
 }
 
+function ReviewStatus({ reviews, requestedReviewers }: {
+  reviews: PRReview[] | undefined;
+  requestedReviewers: { login: string }[];
+}) {
+  if (!reviews && requestedReviewers.length === 0) return null;
+
+  // Deduplicate: latest review per reviewer wins
+  const latestByUser = new Map<string, PRReview>();
+  for (const r of reviews ?? []) {
+    if (!r.user) continue;
+    if (r.state === 'COMMENTED') continue; // skip comment-only reviews
+    const existing = latestByUser.get(r.user.login);
+    if (!existing || (r.submitted_at ?? '') > (existing.submitted_at ?? '')) {
+      latestByUser.set(r.user.login, r);
+    }
+  }
+
+  const approved = [...latestByUser.values()].filter(r => r.state === 'APPROVED');
+  const changesRequested = [...latestByUser.values()].filter(r => r.state === 'CHANGES_REQUESTED');
+  const pending = requestedReviewers.filter(r => !latestByUser.has(r.login));
+
+  if (approved.length === 0 && changesRequested.length === 0 && pending.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs mt-2">
+      {approved.length > 0 && (
+        <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
+          <span>✓</span>
+          <span>{approved.map(r => r.user!.login).join(', ')}</span>
+        </span>
+      )}
+      {changesRequested.length > 0 && (
+        <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400">
+          <span>⊘</span>
+          <span>{changesRequested.map(r => r.user!.login).join(', ')}</span>
+        </span>
+      )}
+      {pending.length > 0 && (
+        <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+          <span>⏳</span>
+          <span>{pending.map(r => r.login).join(', ')}</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
 function WorktreeCard({
   wt,
   plugin,
   pluginTemplate,
   matchingPR,
+  reviews,
 }: {
   wt: Worktree;
   plugin: string;
   pluginTemplate: string | null;
   matchingPR: PRMatch | undefined;
+  reviews: PRReview[] | undefined;
 }) {
   const [draftPROpen, setDraftPROpen] = useState(false);
   const [addReviewOpen, setAddReviewOpen] = useState(false);
@@ -153,6 +204,12 @@ function WorktreeCard({
             <p className="text-xs text-slate-700 dark:text-slate-300 mt-2 leading-snug">
               <span className="font-semibold">Next →</span> {derived.nextStep}
             </p>
+            {matchingPR && matchingPR.source === 'own' && (
+              <ReviewStatus
+                reviews={reviews}
+                requestedReviewers={matchingPR.pr.requested_reviewers ?? []}
+              />
+            )}
           </div>
           <div className="flex-shrink-0 text-right text-xs text-slate-500 font-mono">
             <button
@@ -275,12 +332,17 @@ function StateCount({
 }
 
 export default function Worktrees() {
+  const isLocal =
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1';
+
   const tokenSet = hasToken('github');
 
   const worktreesQ = useQuery({
     queryKey: ['worktree-data'],
     queryFn: fetchWorktreeData,
     staleTime: 30 * 1000,
+    enabled: isLocal,
   });
 
   const ghUser = useQuery({
@@ -300,6 +362,49 @@ export default function Worktrees() {
     queryFn: () => getReviewRequests(ghUser.data!.login),
     enabled: tokenSet && Boolean(ghUser.data?.login),
   });
+
+  // Collect own PRs to fetch reviews for
+  const ownPRsForReviews = useMemo(() => {
+    return (myPRsQ.data ?? []).map((pr) => ({
+      repo: pr.head?.repo?.full_name ?? '',
+      number: pr.number,
+    })).filter((p) => p.repo);
+  }, [myPRsQ.data]);
+
+  const reviewsQueries = useQueries({
+    queries: ownPRsForReviews.map((p) => ({
+      queryKey: ['pr-reviews', p.repo, p.number],
+      queryFn: () => getPRReviews(p.repo, p.number),
+      staleTime: 2 * 60 * 1000,
+      enabled: tokenSet && ownPRsForReviews.length > 0,
+    })),
+  });
+
+  // Map: "repo#number" -> reviews array
+  const reviewsByPR = useMemo(() => {
+    const map = new Map<string, PRReview[]>();
+    ownPRsForReviews.forEach((p, i) => {
+      const data = reviewsQueries[i]?.data;
+      if (data) map.set(`${p.repo}#${p.number}`, data);
+    });
+    return map;
+  }, [ownPRsForReviews, reviewsQueries]);
+
+  if (!isLocal) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="text-4xl mb-4">🔒</div>
+        <h2 className="text-xl font-semibold mb-2">Local only</h2>
+        <p className="text-sm text-slate-500 max-w-sm">
+          Worktrees contain private ticket and commit data. This view is only available when
+          running locally.
+        </p>
+        <p className="mt-4 text-xs text-slate-400 font-mono">
+          http://localhost:5173/dev-dashboard/worktrees
+        </p>
+      </div>
+    );
+  }
 
   if (worktreesQ.isLoading) {
     return (
@@ -415,13 +520,16 @@ export default function Worktrees() {
             <div className="space-y-3">
               {plugin.worktrees.map((wt) => {
                 const key = wt.github_repo ? `${wt.github_repo}#${wt.branch}` : '';
+                const matched = prIndex.get(key);
+                const reviewKey = matched ? `${matched.pr.head?.repo?.full_name}#${matched.pr.number}` : '';
                 return (
                   <WorktreeCard
                     key={wt.ticket}
                     wt={wt}
                     plugin={plugin.name}
                     pluginTemplate={plugin.pr_template}
-                    matchingPR={prIndex.get(key)}
+                    matchingPR={matched}
+                    reviews={reviewsByPR.get(reviewKey)}
                   />
                 );
               })}
