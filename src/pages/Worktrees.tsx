@@ -204,10 +204,10 @@ function WorktreeCard({
             <p className="text-xs text-slate-700 dark:text-slate-300 mt-2 leading-snug">
               <span className="font-semibold">Next →</span> {derived.nextStep}
             </p>
-            {matchingPR && matchingPR.source === 'own' && (
+            {prUrl && derived.state !== 'reviewing' && (
               <ReviewStatus
                 reviews={reviews}
-                requestedReviewers={matchingPR.pr.requested_reviewers ?? []}
+                requestedReviewers={matchingPR?.pr.requested_reviewers ?? []}
               />
             )}
           </div>
@@ -363,32 +363,52 @@ export default function Worktrees() {
     enabled: tokenSet && Boolean(ghUser.data?.login),
   });
 
-  // Collect own PRs to fetch reviews for
-  const ownPRsForReviews = useMemo(() => {
-    return (myPRsQ.data ?? []).map((pr) => ({
-      repo: pr.head?.repo?.full_name ?? '',
-      number: pr.number,
-    })).filter((p) => p.repo);
-  }, [myPRsQ.data]);
+  // Collect PRs to fetch reviews for:
+  // 1. Own open PRs from GitHub search
+  // 2. pr_url-referenced PRs from worktree data (catches closed/merged PRs)
+  const allPRsForReviews = useMemo(() => {
+    const seen = new Set<string>();
+    const list: { repo: string; number: number }[] = [];
+
+    for (const pr of myPRsQ.data ?? []) {
+      const repo = pr.head?.repo?.full_name ?? '';
+      if (!repo) continue;
+      const key = `${repo}#${pr.number}`;
+      if (!seen.has(key)) { seen.add(key); list.push({ repo, number: pr.number }); }
+    }
+
+    for (const plugin of worktreesQ.data?.plugins ?? []) {
+      for (const wt of plugin.worktrees) {
+        if (!wt.pr_url) continue;
+        const m = wt.pr_url.match(/github\.com\/([^/]+\/[^/]+)\/pull\/(\d+)/);
+        if (!m) continue;
+        const repo = m[1]; const number = parseInt(m[2], 10);
+        const key = `${repo}#${number}`;
+        if (!seen.has(key)) { seen.add(key); list.push({ repo, number }); }
+      }
+    }
+
+    return list;
+  }, [myPRsQ.data, worktreesQ.data]);
 
   const reviewsQueries = useQueries({
-    queries: ownPRsForReviews.map((p) => ({
+    queries: allPRsForReviews.map((p) => ({
       queryKey: ['pr-reviews', p.repo, p.number],
       queryFn: () => getPRReviews(p.repo, p.number),
-      staleTime: 2 * 60 * 1000,
-      enabled: tokenSet && ownPRsForReviews.length > 0,
+      staleTime: 5 * 60 * 1000,
+      enabled: tokenSet && allPRsForReviews.length > 0,
     })),
   });
 
   // Map: "repo#number" -> reviews array
   const reviewsByPR = useMemo(() => {
     const map = new Map<string, PRReview[]>();
-    ownPRsForReviews.forEach((p, i) => {
+    allPRsForReviews.forEach((p, i) => {
       const data = reviewsQueries[i]?.data;
       if (data) map.set(`${p.repo}#${p.number}`, data);
     });
     return map;
-  }, [ownPRsForReviews, reviewsQueries]);
+  }, [allPRsForReviews, reviewsQueries]);
 
   if (!isLocal) {
     return (
@@ -521,7 +541,14 @@ export default function Worktrees() {
               {plugin.worktrees.map((wt) => {
                 const key = wt.github_repo ? `${wt.github_repo}#${wt.branch}` : '';
                 const matched = prIndex.get(key);
-                const reviewKey = matched ? `${matched.pr.head?.repo?.full_name}#${matched.pr.number}` : '';
+                // Prefer matched PR's repo+number; fall back to parsing pr_url
+                let reviewKey = '';
+                if (matched?.pr.head?.repo?.full_name) {
+                  reviewKey = `${matched.pr.head.repo.full_name}#${matched.pr.number}`;
+                } else if (wt.pr_url) {
+                  const m = wt.pr_url.match(/github\.com\/([^/]+\/[^/]+)\/pull\/(\d+)/);
+                  if (m) reviewKey = `${m[1]}#${m[2]}`;
+                }
                 return (
                   <WorktreeCard
                     key={wt.ticket}
