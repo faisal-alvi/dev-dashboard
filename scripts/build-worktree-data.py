@@ -23,12 +23,18 @@ from pathlib import Path
 
 GIT = '/usr/bin/git'
 
-# Resolve the plugins root from this script's location.
 SCRIPT_DIR = Path(__file__).resolve().parent
 DASHBOARD_ROOT = SCRIPT_DIR.parent
-PLUGINS_ROOT = DASHBOARD_ROOT.parent
-
 DASHBOARD_NAME = DASHBOARD_ROOT.name  # 'DEV-DASHBOARD'
+
+# WP plugins directory — explicit so the script works regardless of where
+# the dashboard itself lives.
+PLUGINS_ROOT = Path(
+    __import__('os').environ.get(
+        'DASHBOARD_PLUGINS_ROOT',
+        '/Users/faisalalvi/LocalSites/wpne4/app/public/wp-content/plugins',
+    )
+)
 
 
 def run_git(path, *args):
