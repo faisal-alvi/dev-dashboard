@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery, useQueries } from '@tanstack/react-query';
-import { getCurrentUser, getMyOpenPRs, getPRReviews, type PRReview } from '../lib/github';
+import { getCurrentUser, getMyOpenPRs, getPRReviewData, type PRReviewData } from '../lib/github';
 import { hasToken } from '../lib/tokens';
 import PRList from '../components/PRList';
 import { Link } from 'react-router-dom';
@@ -32,15 +32,15 @@ export default function MyPRs() {
 
   const reviewsQueries = useQueries({
     queries: prList.map((p) => ({
-      queryKey: ['pr-reviews', p.repo, p.number],
-      queryFn: () => getPRReviews(p.repo, p.number),
+      queryKey: ['pr-review-data', p.repo, p.number],
+      queryFn: () => getPRReviewData(p.repo, p.number),
       staleTime: 5 * 60 * 1000,
       enabled: tokenSet && prList.length > 0,
     })),
   });
 
   const reviewsByPR = useMemo(() => {
-    const map = new Map<string, PRReview[]>();
+    const map = new Map<string, PRReviewData>();
     prList.forEach((p, i) => {
       const data = reviewsQueries[i]?.data;
       if (data) map.set(`${p.repo}#${p.number}`, data);

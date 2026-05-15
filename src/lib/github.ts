@@ -158,8 +158,17 @@ export interface PRReview {
   submitted_at: string | null;
 }
 
-export async function getPRReviews(repo: string, prNumber: number): Promise<PRReview[]> {
-  return gh<PRReview[]>(`/repos/${repo}/pulls/${prNumber}/reviews`);
+export interface PRReviewData {
+  reviews: PRReview[];
+  requestedReviewers: { login: string }[];
+}
+
+export async function getPRReviewData(repo: string, prNumber: number): Promise<PRReviewData> {
+  const [reviews, pr] = await Promise.all([
+    gh<PRReview[]>(`/repos/${repo}/pulls/${prNumber}/reviews`),
+    gh<{ requested_reviewers: { login: string }[] }>(`/repos/${repo}/pulls/${prNumber}`),
+  ]);
+  return { reviews, requestedReviewers: pr.requested_reviewers ?? [] };
 }
 
 /**

@@ -5,8 +5,8 @@ import {
   getCurrentUser,
   getMyOpenPRs,
   getReviewRequests,
-  getPRReviews,
-  type PRReview,
+  getPRReviewData,
+  type PRReviewData,
 } from '../lib/github';
 import { deriveWorktreeState, type PRMatch } from '../lib/worktree-state';
 import { linearUrl, worktreePath } from '../lib/constants';
@@ -92,7 +92,7 @@ function WorktreeCard({
   plugin: string;
   pluginTemplate: string | null;
   matchingPR: PRMatch | undefined;
-  reviews: PRReview[] | undefined;
+  reviews: PRReviewData | undefined;
 }) {
   const [draftPROpen, setDraftPROpen] = useState(false);
   const [addReviewOpen, setAddReviewOpen] = useState(false);
@@ -158,12 +158,9 @@ function WorktreeCard({
             <p className="text-xs text-slate-700 dark:text-slate-300 mt-2 leading-snug">
               <span className="font-semibold">Next →</span> {derived.nextStep}
             </p>
-            {prUrl && derived.state !== 'reviewing' && (
+            {prUrl && derived.state !== 'reviewing' && reviews && (
               <div className="mt-2">
-                <ReviewStatus
-                  reviews={reviews}
-                  requestedReviewers={matchingPR?.pr.requested_reviewers ?? []}
-                />
+                <ReviewStatus data={reviews} />
               </div>
             )}
           </div>
@@ -349,16 +346,15 @@ export default function Worktrees() {
 
   const reviewsQueries = useQueries({
     queries: allPRsForReviews.map((p) => ({
-      queryKey: ['pr-reviews', p.repo, p.number],
-      queryFn: () => getPRReviews(p.repo, p.number),
+      queryKey: ['pr-review-data', p.repo, p.number],
+      queryFn: () => getPRReviewData(p.repo, p.number),
       staleTime: 5 * 60 * 1000,
       enabled: tokenSet && allPRsForReviews.length > 0,
     })),
   });
 
-  // Map: "repo#number" -> reviews array
   const reviewsByPR = useMemo(() => {
-    const map = new Map<string, PRReview[]>();
+    const map = new Map<string, PRReviewData>();
     allPRsForReviews.forEach((p, i) => {
       const data = reviewsQueries[i]?.data;
       if (data) map.set(`${p.repo}#${p.number}`, data);

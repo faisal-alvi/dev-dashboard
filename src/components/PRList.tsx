@@ -1,4 +1,4 @@
-import type { PullRequest, PRReview } from '../lib/github';
+import type { PullRequest, PRReviewData } from '../lib/github';
 import ReviewStatus from './ReviewStatus';
 
 function relativeTime(iso: string): string {
@@ -29,7 +29,7 @@ export default function PRList({
 }: {
   prs: PullRequest[];
   emptyMessage: string;
-  reviewsByPR?: Map<string, PRReview[]>;
+  reviewsByPR?: Map<string, PRReviewData>;
 }) {
   if (prs.length === 0) {
     return (
@@ -90,15 +90,12 @@ export default function PRList({
                 </div>
                 {reviewsByPR && (() => {
                   const repo = pr.head?.repo?.full_name ?? repoFromUrl(pr.html_url);
-                  const reviews = reviewsByPR.get(`${repo}#${pr.number}`);
-                  return (
+                  const reviewData = reviewsByPR.get(`${repo}#${pr.number}`);
+                  return reviewData ? (
                     <div className="mt-2">
-                      <ReviewStatus
-                        reviews={reviews}
-                        requestedReviewers={pr.requested_reviewers ?? []}
-                      />
+                      <ReviewStatus data={reviewData} />
                     </div>
-                  );
+                  ) : null;
                 })()}
               </div>
               <img
