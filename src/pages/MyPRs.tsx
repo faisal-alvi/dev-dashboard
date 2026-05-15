@@ -21,10 +21,12 @@ export default function MyPRs() {
   });
 
   const prList = useMemo(() =>
-    (prs.data ?? []).map((pr) => ({
-      repo: pr.head?.repo?.full_name ?? '',
-      number: pr.number,
-    })).filter((p) => p.repo),
+    (prs.data ?? []).map((pr) => {
+      const repo = pr.head?.repo?.full_name
+        ?? pr.html_url.match(/github\.com\/([^/]+\/[^/]+)\/pull/)?.[1]
+        ?? '';
+      return { repo, number: pr.number };
+    }).filter((p) => p.repo),
     [prs.data],
   );
 
