@@ -107,24 +107,24 @@ export function deriveWorktreeState(
         : 'Draft your review (Add review button), then submit it on GitHub';
     } else if (matchingPR.pr.draft) {
       state = 'pr_draft';
-      nextStep = uncommitted > 0
+      nextStep = wt.next_action ?? (uncommitted > 0
         ? 'Commit remaining changes, then mark PR ready for review on GitHub'
-        : 'Mark PR as "Ready for review" on GitHub when implementation is complete';
+        : 'Mark PR as "Ready for review" on GitHub when implementation is complete');
     } else {
       state = 'in_review';
-      nextStep = uncommitted > 0
+      nextStep = wt.next_action ?? (uncommitted > 0
         ? 'You have uncommitted local changes — push them or stash before merge'
-        : 'Address any review comments; merge when approved';
+        : 'Address any review comments; merge when approved');
     }
   } else if (/-pr$/.test(wt.branch)) {
     // Branch convention from /review-ticket — user is reviewing
     state = 'reviewing';
-    nextStep = wt.review_status === 'Approved'
+    nextStep = wt.next_action ?? (wt.review_status === 'Approved'
       ? 'Open PR on GitHub and submit your pending review'
-      : 'Run /review-ticket if not done; draft your review via Add review button';
+      : 'Run /review-ticket if not done; draft your review via Add review button');
   } else if (wt.status && /merged|closed/i.test(wt.status)) {
     state = 'merged';
-    nextStep = 'Run /cleanup-ticket to remove the worktree and symlinks';
+    nextStep = wt.next_action ?? 'Run /cleanup-ticket to remove the worktree and symlinks';
   } else if (uncommitted > 0) {
     state = 'implementing';
     nextStep = wt.next_action

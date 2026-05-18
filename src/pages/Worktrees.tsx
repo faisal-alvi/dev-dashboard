@@ -155,6 +155,11 @@ function WorktreeCard({
                 {wt.title}
               </p>
             )}
+            {wt.status && (
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate" title={wt.status}>
+                {wt.status}
+              </p>
+            )}
             <p className="text-xs text-slate-700 dark:text-slate-300 mt-2 leading-snug">
               <span className="font-semibold">Next →</span> {derived.nextStep}
             </p>

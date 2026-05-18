@@ -67,7 +67,7 @@ def extract_status(content):
             line,
         )
         if m:
-            val = re.sub(r'\*\*$', '', m.group(1)).strip()
+            val = m.group(1).strip().strip('*').strip()
             if val:
                 return val[:100]
     return None
@@ -240,6 +240,42 @@ def collect_plugin(plugin_dir):
     }
 
 
+def write_markdown_status(plugins, generated_at, output_path):
+    lines = [
+        '# Worktree Status',
+        f'_Generated: {generated_at}_',
+        '',
+        '---',
+        '',
+    ]
+    for plugin in plugins:
+        lines.append(f'## {plugin["name"]}')
+        lines.append('')
+        lines.append('| Ticket | Status | Next Action | Git | Ahead/Behind |')
+        lines.append('|---|---|---|---|---|')
+        for wt in plugin['worktrees']:
+            git = wt['git']
+            parts = []
+            if git['staged']:
+                parts.append(f'S:{git["staged"]}')
+            if git['modified']:
+                parts.append(f'M:{git["modified"]}')
+            if git['untracked']:
+                parts.append(f'U:{git["untracked"]}')
+            git_summary = ' '.join(parts) if parts else 'clean'
+            ahead_behind = f'↑{git["ahead"]} ↓{git["behind"]}'
+            status = wt['status'] or '—'
+            next_action = wt['next_action'] or '—'
+            lines.append(
+                f'| {wt["ticket"]} | {status} | {next_action} | {git_summary} | {ahead_behind} |'
+            )
+        lines.append('')
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text('\n'.join(lines), encoding='utf-8')
+    print(f'Wrote {output_path}')
+
+
 def main():
     plugins = []
     for plugin_dir in sorted(PLUGINS_ROOT.iterdir()):
@@ -251,8 +287,9 @@ def main():
         if result:
             plugins.append(result)
 
+    generated_at = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
     data = {
-        'generated_at': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+        'generated_at': generated_at,
         'plugins': plugins,
     }
 
@@ -262,6 +299,9 @@ def main():
     total = sum(len(p['worktrees']) for p in plugins)
     print(f'Wrote {output}')
     print(f'Stats: {total} worktrees across {len(plugins)} plugins')
+
+    md_output = PLUGINS_ROOT / '.claude' / 'docs' / 'worktree-status.md'
+    write_markdown_status(plugins, generated_at, md_output)
 
 
 if __name__ == '__main__':
