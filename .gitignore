@@ -10,3 +10,6 @@ dist
 .claude/
 .cursor/
 CLAUDE.md
+
+# Local-only worktree doc bodies (not pushed to public repo)
+public/worktree-docs.json

@@ -31,6 +31,7 @@ export interface Worktree {
   title: string | null;
   status: string | null;
   next_action: string | null;
+  completed: string[] | null;
   branch: string;
   github_repo: string | null;
   pr_url: string | null;
@@ -38,6 +39,27 @@ export interface Worktree {
   git: WorktreeGitState;
   last_activity: string | null;
   pr_template: string | null;
+}
+
+export interface WorktreeDoc {
+  name: string;
+  label: string;
+  content: string;
+}
+
+export interface WorktreeDocsEntry {
+  ticket: string;
+  docs: WorktreeDoc[];
+}
+
+export interface WorktreeDocsPlugin {
+  name: string;
+  worktrees: WorktreeDocsEntry[];
+}
+
+export interface WorktreeDocsData {
+  generated_at: string;
+  plugins: WorktreeDocsPlugin[];
 }
 
 export interface PluginWorktrees {
@@ -58,6 +80,13 @@ export async function fetchWorktreeData(): Promise<WorktreeData | null> {
     if (res.status === 404) return null;
     throw new Error(`Failed to load worktree data: ${res.status}`);
   }
+  return res.json();
+}
+
+export async function fetchWorktreeDocs(): Promise<WorktreeDocsData | null> {
+  const url = `${import.meta.env.BASE_URL}worktree-docs.json`;
+  const res = await fetch(url, { cache: 'no-cache' });
+  if (!res.ok) return null;
   return res.json();
 }
 

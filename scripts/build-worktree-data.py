@@ -105,6 +105,36 @@ def extract_next_action(content):
     return None
 
 
+def extract_completed(content):
+    """Collect bullets from Completed/What changed/Files Changed sections."""
+    if not content:
+        return []
+    section_re = re.compile(
+        r'completed|what changed|files changed|changes made',
+        re.IGNORECASE,
+    )
+    in_section = False
+    items = []
+    for line in content.splitlines():
+        if line.strip().startswith('#'):
+            if in_section:
+                break
+            if section_re.search(line):
+                in_section = True
+            continue
+        if not in_section:
+            continue
+        stripped = line.strip()
+        if not stripped:
+            continue
+        # Collect top-level bullets only (not sub-bullets)
+        if re.match(r'^[-*]|\d+\.', stripped):
+            clean = re.sub(r'^[-*]\s*|\d+\.\s*', '', stripped).strip()
+            if clean:
+                items.append(clean[:160])
+    return items[:6]
+
+
 def extract_pr_url(content):
     if not content:
         return None
@@ -214,14 +244,16 @@ def collect_plugin(plugin_dir):
         ticket = wt_dir.name
         docs = wt_dir / '.claude' / 'docs'
 
+        status_content = read_file(docs / 'status.md')
         worktrees.append({
             'ticket': ticket,
             'title': extract_title(read_file(docs / f'{ticket}.md')),
-            'status': extract_status(read_file(docs / 'status.md')),
-            'next_action': extract_next_action(read_file(docs / 'status.md')),
+            'status': extract_status(status_content),
+            'next_action': extract_next_action(status_content),
+            'completed': extract_completed(status_content),
             'branch': run_git(wt_dir, 'rev-parse', '--abbrev-ref', 'HEAD') or 'unknown',
             'github_repo': extract_github_repo(wt_dir),
-            'pr_url': extract_pr_url(read_file(docs / 'status.md')),
+            'pr_url': extract_pr_url(status_content),
             'review_status': extract_review_status(
                 read_file(docs / f'{ticket}-review.md')
             ),
@@ -238,6 +270,53 @@ def collect_plugin(plugin_dir):
         'pr_template': plugin_template,
         'worktrees': worktrees,
     }
+
+
+DOC_SLOTS = [
+    ('status.md',       'Status'),
+    ('plan.md',         'Plan'),
+    ('changelog.md',    'Changelog'),
+    (None,              'Ticket'),   # {ticket}.md — resolved per worktree
+    ('INSTRUCTIONS.md', 'Instructions'),
+]
+
+
+def collect_docs(ticket, docs_dir):
+    result = []
+    for filename, label in DOC_SLOTS:
+        if filename is None:
+            filename = f'{ticket}.md'
+            label = 'Ticket'
+        p = docs_dir / filename
+        content = read_file(p)
+        if content is not None:
+            result.append({'name': filename.replace('.md', ''), 'label': label, 'content': content})
+    # Also pick up any {ticket}-review.md
+    review_path = docs_dir / f'{ticket}-review.md'
+    review_content = read_file(review_path)
+    if review_content is not None:
+        result.append({'name': f'{ticket}-review', 'label': 'Review', 'content': review_content})
+    return result
+
+
+def write_docs_json(plugins, generated_at, output_path):
+    data = {
+        'generated_at': generated_at,
+        'plugins': [],
+    }
+    for plugin in plugins:
+        plugin_docs = {'name': plugin['name'], 'worktrees': []}
+        worktrees_dir = PLUGINS_ROOT / plugin['name'] / '.claude' / 'worktrees'
+        for wt in plugin['worktrees']:
+            docs_dir = worktrees_dir / wt['ticket'] / '.claude' / 'docs'
+            plugin_docs['worktrees'].append({
+                'ticket': wt['ticket'],
+                'docs': collect_docs(wt['ticket'], docs_dir),
+            })
+        data['plugins'].append(plugin_docs)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(data, indent=2) + '\n', encoding='utf-8')
+    print(f'Wrote {output_path}')
 
 
 def write_markdown_status(plugins, generated_at, output_path):
@@ -299,6 +378,9 @@ def main():
     total = sum(len(p['worktrees']) for p in plugins)
     print(f'Wrote {output}')
     print(f'Stats: {total} worktrees across {len(plugins)} plugins')
+
+    docs_output = DASHBOARD_ROOT / 'public' / 'worktree-docs.json'
+    write_docs_json(plugins, generated_at, docs_output)
 
     md_output = PLUGINS_ROOT / '.claude' / 'docs' / 'worktree-status.md'
     write_markdown_status(plugins, generated_at, md_output)
