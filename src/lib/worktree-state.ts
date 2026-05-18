@@ -125,6 +125,12 @@ export function deriveWorktreeState(
   } else if (wt.status && /merged|closed/i.test(wt.status)) {
     state = 'merged';
     nextStep = wt.next_action ?? 'Run /cleanup-ticket to remove the worktree and symlinks';
+  } else if (wt.pr_url) {
+    // PR URL known from status.md but not matched via GitHub API
+    state = 'in_review';
+    nextStep = wt.next_action ?? (uncommitted > 0
+      ? 'PR raised — commit remaining local changes and push to update it'
+      : 'Awaiting review — address any comments when they come in');
   } else if (uncommitted > 0) {
     state = 'implementing';
     nextStep = wt.next_action

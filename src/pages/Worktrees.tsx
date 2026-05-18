@@ -249,7 +249,6 @@ function WorktreeCard({
             />
           )}
           <CopyButton value={`cd ${path}`} label="cd path" />
-          <CopyButton value={`/cleanup-ticket ${wt.ticket}`} label="cleanup cmd" />
         </div>
       </div>
 
@@ -305,6 +304,8 @@ export default function Worktrees() {
   const isLocal =
     window.location.hostname === 'localhost' ||
     window.location.hostname === '127.0.0.1';
+
+  const [query, setQuery] = useState('');
 
   const tokenSet = hasToken('github');
 
@@ -487,6 +488,14 @@ export default function Worktrees() {
         </div>
       </div>
 
+      <input
+        type="search"
+        placeholder="Filter worktrees…"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        className="w-full mb-4 px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-600"
+      />
+
       <div className="flex flex-wrap gap-2 mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">
         <StateCount label="implementing" count={stateCounts.implementing} icon="⚒️" color="bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300" />
         <StateCount label="ready for PR" count={stateCounts.ready_for_pr} icon="✓" color="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300" />
@@ -498,16 +507,25 @@ export default function Worktrees() {
       </div>
 
       <div className="space-y-8">
-        {data.plugins.map((plugin) => (
+        {data.plugins.map((plugin) => {
+          const needle = query.trim().toLowerCase();
+          const visibleWorktrees = needle
+            ? plugin.worktrees.filter((wt) =>
+                [wt.ticket, wt.title, wt.status, wt.next_action, wt.summary, plugin.name]
+                  .some((v) => v?.toLowerCase().includes(needle))
+              )
+            : plugin.worktrees;
+          if (visibleWorktrees.length === 0) return null;
+          return (
           <section key={plugin.name}>
             <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 sticky top-0 bg-slate-50 dark:bg-slate-950 py-1 z-10">
               {plugin.name}{' '}
               <span className="text-xs font-normal text-slate-500">
-                ({plugin.worktrees.length})
+                ({visibleWorktrees.length}{needle && visibleWorktrees.length !== plugin.worktrees.length ? ` of ${plugin.worktrees.length}` : ''})
               </span>
             </h3>
             <div className="space-y-3">
-              {plugin.worktrees.map((wt) => {
+              {visibleWorktrees.map((wt) => {
                 const key = wt.github_repo ? `${wt.github_repo}#${wt.branch}` : '';
                 const matched = prIndex.get(key);
                 // Prefer matched PR's repo+number; fall back to parsing pr_url
@@ -531,7 +549,8 @@ export default function Worktrees() {
               })}
             </div>
           </section>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
