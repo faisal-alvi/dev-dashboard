@@ -105,34 +105,29 @@ def extract_next_action(content):
     return None
 
 
-def extract_completed(content):
-    """Collect bullets from Completed/What changed/Files Changed sections."""
+def extract_summary(content):
+    """Return the first paragraph of the ## Summary section."""
     if not content:
-        return []
-    section_re = re.compile(
-        r'completed|what changed|files changed|changes made',
-        re.IGNORECASE,
-    )
+        return None
     in_section = False
-    items = []
+    lines = []
     for line in content.splitlines():
         if line.strip().startswith('#'):
             if in_section:
                 break
-            if section_re.search(line):
+            if re.search(r'[Ss]ummary', line):
                 in_section = True
             continue
         if not in_section:
             continue
         stripped = line.strip()
         if not stripped:
+            if lines:
+                break
             continue
-        # Collect top-level bullets only (not sub-bullets)
-        if re.match(r'^[-*]|\d+\.', stripped):
-            clean = re.sub(r'^[-*]\s*|\d+\.\s*', '', stripped).strip()
-            if clean:
-                items.append(clean[:160])
-    return items[:6]
+        lines.append(stripped)
+    text = ' '.join(lines)
+    return text[:300] if text else None
 
 
 def extract_pr_url(content):
@@ -250,7 +245,7 @@ def collect_plugin(plugin_dir):
             'title': extract_title(read_file(docs / f'{ticket}.md')),
             'status': extract_status(status_content),
             'next_action': extract_next_action(status_content),
-            'completed': extract_completed(status_content),
+            'summary': extract_summary(status_content),
             'branch': run_git(wt_dir, 'rev-parse', '--abbrev-ref', 'HEAD') or 'unknown',
             'github_repo': extract_github_repo(wt_dir),
             'pr_url': extract_pr_url(status_content),

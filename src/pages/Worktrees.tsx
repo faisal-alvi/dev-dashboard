@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useQueries } from '@tanstack/react-query';
-import { fetchWorktreeData, fetchWorktreeDocs, summariseGit, type Worktree, type WorktreeDoc } from '../lib/worktrees';
+import { fetchWorktreeData, summariseGit, type Worktree } from '../lib/worktrees';
 import {
   getCurrentUser,
   getMyOpenPRs,
@@ -16,7 +17,6 @@ import DraftPRModal from '../components/DraftPRModal';
 import AddReviewModal from '../components/AddReviewModal';
 import GitDetailsModal from '../components/GitDetailsModal';
 import ReviewStatus from '../components/ReviewStatus';
-import WorktreeDrawer from '../components/WorktreeDrawer';
 
 function relativeDay(isoDate: string | null): string {
   if (!isoDate) return '—';
@@ -82,55 +82,22 @@ function ActionBtn({
   );
 }
 
-function CompletedList({ items }: { items: string[] }) {
-  const [expanded, setExpanded] = useState(false);
-  const visible = expanded ? items : items.slice(0, 2);
-  return (
-    <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-      <button
-        onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
-        className="font-semibold text-emerald-600 dark:text-emerald-400 hover:underline mb-1"
-      >
-        ✓ Done ({items.length}){expanded ? ' ▲' : ' ▼'}
-      </button>
-      <ul className="space-y-0.5 pl-1">
-        {visible.map((item, i) => (
-          <li key={i} className="truncate" title={item}>
-            <span className="text-emerald-500 mr-1">·</span>{item}
-          </li>
-        ))}
-      </ul>
-      {!expanded && items.length > 2 && (
-        <button
-          onClick={(e) => { e.stopPropagation(); setExpanded(true); }}
-          className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 mt-0.5"
-        >
-          +{items.length - 2} more
-        </button>
-      )}
-    </div>
-  );
-}
-
 function WorktreeCard({
   wt,
   plugin,
   pluginTemplate,
   matchingPR,
   reviews,
-  docs,
 }: {
   wt: Worktree;
   plugin: string;
   pluginTemplate: string | null;
   matchingPR: PRMatch | undefined;
   reviews: PRReviewData | undefined;
-  docs: WorktreeDoc[] | null;
 }) {
   const [draftPROpen, setDraftPROpen] = useState(false);
   const [addReviewOpen, setAddReviewOpen] = useState(false);
   const [gitDetailsOpen, setGitDetailsOpen] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const githubReady = hasToken('github');
   const derived = deriveWorktreeState(wt, matchingPR);
   const gitSummary = summariseGit(wt.git);
@@ -177,13 +144,13 @@ function WorktreeCard({
                 <span>{derived.icon}</span>
                 <span>{derived.label}</span>
               </span>
-              <button
-                onClick={() => setDrawerOpen(true)}
-                className="font-mono text-sm font-semibold hover:underline text-left"
-                title="Open docs"
+              <Link
+                to={`/worktrees/${encodeURIComponent(wt.ticket)}`}
+                className="font-mono text-sm font-semibold hover:underline"
+                title="Open detail page"
               >
                 {wt.ticket}
-              </button>
+              </Link>
               {wt.review_status && derived.state !== 'reviewing' && (
                 <span className="px-1.5 py-0.5 text-xs rounded bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
                   Review: {wt.review_status}
@@ -203,8 +170,10 @@ function WorktreeCard({
             <p className="text-xs text-slate-700 dark:text-slate-300 mt-2 leading-snug">
               <span className="font-semibold">Next →</span> {derived.nextStep}
             </p>
-            {wt.completed && wt.completed.length > 0 && (
-              <CompletedList items={wt.completed} />
+            {wt.summary && (
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed line-clamp-2" title={wt.summary}>
+                <span className="font-semibold text-slate-600 dark:text-slate-300">Done: </span>{wt.summary}
+              </p>
             )}
             {prUrl && derived.state !== 'reviewing' && reviews && (
               <div className="mt-2">
@@ -307,13 +276,6 @@ function WorktreeCard({
         wt={wt}
         plugin={plugin}
       />
-      <WorktreeDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        ticket={wt.ticket}
-        plugin={plugin}
-        docs={docs}
-      />
     </div>
   );
 }
@@ -352,24 +314,6 @@ export default function Worktrees() {
     staleTime: 30 * 1000,
     enabled: isLocal,
   });
-
-  const docsQ = useQuery({
-    queryKey: ['worktree-docs'],
-    queryFn: fetchWorktreeDocs,
-    staleTime: 30 * 1000,
-    enabled: isLocal,
-  });
-
-  // Build a lookup map: "plugin/ticket" -> WorktreeDoc[]
-  const docsMap = useMemo(() => {
-    const map = new Map<string, WorktreeDoc[]>();
-    for (const plugin of docsQ.data?.plugins ?? []) {
-      for (const entry of plugin.worktrees) {
-        map.set(`${plugin.name}/${entry.ticket}`, entry.docs);
-      }
-    }
-    return map;
-  }, [docsQ.data]);
 
   const ghUser = useQuery({
     queryKey: ['github-user'],
@@ -582,7 +526,6 @@ export default function Worktrees() {
                     pluginTemplate={plugin.pr_template}
                     matchingPR={matched}
                     reviews={reviewsByPR.get(reviewKey)}
-                    docs={docsMap.get(`${plugin.name}/${wt.ticket}`) ?? null}
                   />
                 );
               })}

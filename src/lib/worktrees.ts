@@ -31,7 +31,7 @@ export interface Worktree {
   title: string | null;
   status: string | null;
   next_action: string | null;
-  completed: string[] | null;
+  summary: string | null;
   branch: string;
   github_repo: string | null;
   pr_url: string | null;
