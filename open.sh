@@ -1,5 +1,6 @@
 #!/bin/bash
-source ~/.nvm/nvm.sh
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
 nvm use 20 --silent
 cd "$(dirname "$0")"
 npm run dev
