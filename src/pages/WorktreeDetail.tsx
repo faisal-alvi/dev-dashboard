@@ -36,28 +36,11 @@ function AccordionItem({ doc, defaultOpen }: { doc: WorktreeDoc; defaultOpen: bo
 
 export default function WorktreeDetail() {
   const { ticket } = useParams<{ ticket: string }>();
-  const isLocal =
-    window.location.hostname === 'localhost' ||
-    window.location.hostname === '127.0.0.1';
-
   const docsQ = useQuery({
     queryKey: ['worktree-docs'],
     queryFn: fetchWorktreeDocs,
     staleTime: 30 * 1000,
-    enabled: isLocal,
   });
-
-  if (!isLocal) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="text-4xl mb-4">🔒</div>
-        <h2 className="text-xl font-semibold mb-2">Local only</h2>
-        <p className="text-sm text-slate-500 max-w-sm">
-          Worktree docs contain private ticket content and are only available locally.
-        </p>
-      </div>
-    );
-  }
 
   const backLink = (
     <Link

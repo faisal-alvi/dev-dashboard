@@ -301,10 +301,6 @@ function StateCount({
 }
 
 export default function Worktrees() {
-  const isLocal =
-    window.location.hostname === 'localhost' ||
-    window.location.hostname === '127.0.0.1';
-
   const [query, setQuery] = useState('');
 
   const tokenSet = hasToken('github');
@@ -313,7 +309,6 @@ export default function Worktrees() {
     queryKey: ['worktree-data'],
     queryFn: fetchWorktreeData,
     staleTime: 30 * 1000,
-    enabled: isLocal,
   });
 
   const ghUser = useQuery({
@@ -379,22 +374,6 @@ export default function Worktrees() {
     });
     return map;
   }, [allPRsForReviews, reviewsQueries]);
-
-  if (!isLocal) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="text-4xl mb-4">🔒</div>
-        <h2 className="text-xl font-semibold mb-2">Local only</h2>
-        <p className="text-sm text-slate-500 max-w-sm">
-          Worktrees contain private ticket and commit data. This view is only available when
-          running locally.
-        </p>
-        <p className="mt-4 text-xs text-slate-400 font-mono">
-          http://localhost:5173/dev-dashboard/worktrees
-        </p>
-      </div>
-    );
-  }
 
   if (worktreesQ.isLoading) {
     return (
