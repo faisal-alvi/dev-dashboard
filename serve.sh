@@ -1,6 +1,6 @@
 #!/bin/bash
 # Open the dev dashboard locally — no npm needed at runtime.
-# Run once after cloning: source ~/.nvm/nvm.sh && nvm use 20 && npm run build:local
+# First-time only: source ~/.nvm/nvm.sh && nvm use 20 && npm run build:local
 
 DASHBOARD_DIR="$(cd "$(dirname "$0")" && pwd)"
 DIST="$DASHBOARD_DIR/dist"
@@ -13,6 +13,5 @@ if [ ! -d "$DIST" ]; then
   cd "$DASHBOARD_DIR" && npm run build:local
 fi
 
-echo "Dashboard → http://localhost:$PORT/worktrees"
 open "http://localhost:$PORT/worktrees" 2>/dev/null || true
-exec python3 -m http.server $PORT --directory "$DIST"
+exec python3 "$DASHBOARD_DIR/serve.py" $PORT
