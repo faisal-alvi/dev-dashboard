@@ -11,5 +11,6 @@ dist
 .cursor/
 CLAUDE.md
 
-# Local-only worktree doc bodies (not pushed to public repo)
+# Local-only worktree data — never commit these
+public/worktree-data.json
 public/worktree-docs.json
