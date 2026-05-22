@@ -9,6 +9,7 @@ interface Tab {
 
 const tabs: Tab[] = [
   { to: '/', label: 'Overview', end: true, icon: '🏠' },
+  { to: '/worktrees', label: 'Worktrees', icon: '🌿' },
   { to: '/my-prs', label: 'My PRs', icon: '📤' },
   { to: '/review-queue', label: 'Review Queue', icon: '📥' },
   { to: '/time', label: 'Time', icon: '⏱️' },
