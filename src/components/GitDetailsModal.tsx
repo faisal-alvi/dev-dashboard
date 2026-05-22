@@ -10,6 +10,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   wt: Worktree;
+  plugin?: string;
   pr?: PullRequest;
   reviews?: PRReviewData;
   noPR?: boolean; // confirmed: branch lookup done, no PR found
@@ -211,7 +212,7 @@ function relativeTime(iso: string): string {
   return `${Math.floor(days / 365)}y ago`;
 }
 
-export default function GitDetailsModal({ open, onClose, wt, pr, reviews, noPR }: Props) {
+export default function GitDetailsModal({ open, onClose, wt, pr, reviews, noPR }: Props) { // plugin accepted but unused — Worktrees.tsx passes it for legacy compat
   const files = wt.git.files ?? [];
   const commits = wt.git.recent_commits ?? [];
   const diffFiles = wt.git.diff ? parseDiff(wt.git.diff) : [];
